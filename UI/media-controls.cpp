@@ -275,6 +275,7 @@ void MediaControls::RefreshControls()
 		SetPlayingState();
 		break;
 	case OBS_MEDIA_STATE_PAUSED:
+	case OBS_MEDIA_STATE_READY:
 		SetPausedState();
 		break;
 	default:
@@ -356,6 +357,7 @@ void MediaControls::on_playPauseButton_clicked()
 	switch (state) {
 	case OBS_MEDIA_STATE_STOPPED:
 	case OBS_MEDIA_STATE_ENDED:
+	case OBS_MEDIA_STATE_READY:
 		RestartMedia();
 		break;
 	case OBS_MEDIA_STATE_PLAYING:
