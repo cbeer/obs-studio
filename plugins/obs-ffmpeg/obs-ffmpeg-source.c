@@ -55,6 +55,7 @@ struct ffmpeg_source {
 	bool is_hw_decoding;
 	bool is_clear_on_media_end;
 	bool restart_on_activate;
+	bool autoplay;
 	bool close_when_inactive;
 	bool seekable;
 
@@ -108,6 +109,7 @@ static void ffmpeg_source_defaults(obs_data_t *settings)
 	obs_data_set_default_bool(settings, "is_local_file", true);
 	obs_data_set_default_bool(settings, "looping", false);
 	obs_data_set_default_bool(settings, "clear_on_media_end", true);
+	obs_data_set_default_bool(settings, "autoplay", true);
 	obs_data_set_default_bool(settings, "restart_on_activate", true);
 	obs_data_set_default_int(settings, "reconnect_delay_sec", 10);
 	obs_data_set_default_int(settings, "buffering_mb", 2);
@@ -168,6 +170,8 @@ static obs_properties_t *ffmpeg_source_getproperties(void *data)
 
 	obs_properties_add_bool(props, "restart_on_activate",
 				obs_module_text("RestartWhenActivated"));
+
+	obs_properties_add_bool(props, "autoplay", obs_module_text("Autoplay"));
 
 	prop = obs_properties_add_int_slider(props, "buffering_mb",
 					     obs_module_text("BufferingMB"), 0,
@@ -232,12 +236,14 @@ static void dump_source_info(struct ffmpeg_source *s, const char *input,
 		"\tis_hw_decoding:          %s\n"
 		"\tis_clear_on_media_end:   %s\n"
 		"\trestart_on_activate:     %s\n"
+		"\tautoplay:           %s\n"
 		"\tclose_when_inactive:     %s",
 		input ? input : "(null)",
 		input_format ? input_format : "(null)", s->speed_percent,
 		s->is_looping ? "yes" : "no", s->is_hw_decoding ? "yes" : "no",
 		s->is_clear_on_media_end ? "yes" : "no",
 		s->restart_on_activate ? "yes" : "no",
+		s->autoplay ? "yes" : "no",
 		s->close_when_inactive ? "yes" : "no");
 }
 
@@ -423,6 +429,7 @@ static void ffmpeg_source_update(void *data, obs_data_t *settings)
 		obs_data_get_bool(settings, "clear_on_media_end");
 	s->restart_on_activate =
 		obs_data_get_bool(settings, "restart_on_activate");
+	s->autoplay = obs_data_get_bool(settings, "autoplay");
 	s->range = (enum video_range_type)obs_data_get_int(settings,
 							   "color_range");
 	s->buffering_mb = (int)obs_data_get_int(settings, "buffering_mb");
@@ -439,12 +446,17 @@ static void ffmpeg_source_update(void *data, obs_data_t *settings)
 	}
 
 	bool active = obs_source_active(s->source);
-	if (!s->close_when_inactive || active)
+	if (!s->close_when_inactive || active || s->autoplay)
 		ffmpeg_source_open(s);
 
 	dump_source_info(s, input, input_format);
-	if (!s->restart_on_activate || active)
+	if (s->restart_on_activate && active) {
 		ffmpeg_source_start(s);
+	} else if (!s->restart_on_activate && s->autoplay) {
+		ffmpeg_source_start(s);
+	} else {
+		set_media_state(s, OBS_MEDIA_STATE_READY);
+	}
 }
 
 static const char *ffmpeg_source_getname(void *unused)
